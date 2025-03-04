@@ -56,6 +56,19 @@
   background-color: #d1e7dd;
 }
 
+.message-attachment {
+  margin-top: 5px;
+}
+
+.message-attachment a {
+  color: #007bff;
+  text-decoration: none;
+}
+
+.message-attachment a:hover {
+  text-decoration: underline;
+}
+
 .message-form {
   display: flex;
   align-items: center;
@@ -66,6 +79,10 @@
   padding: 10px;
   border: 1px solid #ccc;
   border-radius: 20px;
+  margin-right: 10px;
+}
+
+.file-input {
   margin-right: 10px;
 }
 

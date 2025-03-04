@@ -7,12 +7,12 @@ import {
   Navigate,
   Link,
 } from "react-router-dom";
-import { UserProvider } from "./context/UserContext";
+import { UserProvider, useUser } from "./context/UserContext";
 import Login from "./components/Login";
 import Logout from "./components/Logout";
 import Dashboard from "./components/Dashboard";
 import Home from "./components/Home";
-import Chat from "./components/Chat";
+import Chat from "./components/Chat"; // No changes needed here, still the main chat component
 import Voice from "./components/Voice";
 import Video from "./components/Video";
 import Email from "./components/Email";
@@ -20,8 +20,8 @@ import SMS from "./components/SMS";
 import "./App.css";
 
 const PrivateRoute = ({ children }) => {
-  const isAuthenticated = true; // Replace this with your actual authentication logic
-  return isAuthenticated ? children : <Navigate to="/login" replace />;
+  const { user } = useUser(); // Use context to get the logged-in user
+  return user ? children : <Navigate to="/login" replace />;
 };
 
 const App = () => {
@@ -59,11 +59,46 @@ const App = () => {
             <Route path="/logout" element={<Logout />} />
             <Route path="/" element={<Navigate to="/login" replace />} />
             <Route path="/home" element={<Home />} />
-            <Route path="/chat" element={<Chat />} />
-            <Route path="/voice" element={<Voice />} />
-            <Route path="/video" element={<Video />} />
-            <Route path="/email" element={<Email />} />
-            <Route path="/sms" element={<SMS />} />
+            <Route
+              path="/chat"
+              element={
+                <PrivateRoute>
+                  <Chat />
+                </PrivateRoute>
+              }
+            />
+            <Route
+              path="/voice"
+              element={
+                <PrivateRoute>
+                  <Voice />
+                </PrivateRoute>
+              }
+            />
+            <Route
+              path="/video"
+              element={
+                <PrivateRoute>
+                  <Video />
+                </PrivateRoute>
+              }
+            />
+            <Route
+              path="/email"
+              element={
+                <PrivateRoute>
+                  <Email />
+                </PrivateRoute>
+              }
+            />
+            <Route
+              path="/sms"
+              element={
+                <PrivateRoute>
+                  <SMS />
+                </PrivateRoute>
+              }
+            />
             <Route
               path="/dashboard"
               element={

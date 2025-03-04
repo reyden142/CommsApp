@@ -1,0 +1,89 @@
+.email-app-container {
+    width: 800px;
+    height: 650px;
+    border: 2px solid #ccc;
+    border-radius: 10px;
+    margin: 0 auto;
+    padding: 20px;
+    background-color: #f9f9f9;
+    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-start;
+  }
+  
+  .header {
+    display: flex;
+    justify-content: space-between;
+    padding-bottom: 20px;
+    border-bottom: 2px solid #ccc;
+  }
+  
+  .header-left, .header-right {
+    display: flex;
+    gap: 10px;
+  }
+  
+  .btn {
+    padding: 10px 20px;
+    font-size: 14px;
+    cursor: pointer;
+    border: none;
+    background-color: #007bff;
+    color: white;
+    border-radius: 5px;
+  }
+  
+  .btn:hover {
+    background-color: #0056b3;
+  }
+  
+  .email-body {
+    padding: 20px;
+    flex-grow: 1;
+  }
+  
+  .placeholder {
+    font-size: 18px;
+    color: #777;
+    text-align: center;
+  }
+  
+  .compose-field {
+    margin-bottom: 15px;
+  }
+  
+  .compose-field label {
+    display: block;
+    font-weight: bold;
+    margin-bottom: 5px;
+  }
+  
+  .compose-field input,
+  .compose-field textarea {
+    width: 100%;
+    padding: 10px;
+    font-size: 14px;
+    border: 1px solid #ccc;
+    border-radius: 5px;
+  }
+  
+  .compose-field textarea {
+    height: 150px;
+  }
+  
+  .compose-actions {
+    margin-top: 20px;
+  }
+  
+  .compose-field input[type="file"] {
+    padding: 5px;
+  }
+  
+  .compose-field span {
+    display: inline-block;
+    margin-top: 5px;
+    font-size: 14px;
+    color: #007bff;
+  }
+  

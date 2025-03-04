@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState } from "react";
 import {
   BrowserRouter as Router,
   Route,
@@ -19,6 +19,53 @@ import SMS from "./components/SMS";
 import "./App.css";
 
 const App = () => {
+  // State to store any email-related information
+  const [emails, setEmails] = useState([]);
+  const [isLoading, setIsLoading] = useState(false);
+
+  // Function to handle sending email
+  const handleSendEmail = async (emailData) => {
+    try {
+      setIsLoading(true); // Indicate loading while sending email
+      const response = await fetch("http://localhost:5000/send-email", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(emailData),
+      });
+
+      const result = await response.json();
+      if (result.success) {
+        alert("Email sent successfully!");
+      } else {
+        alert("Failed to send email");
+      }
+    } catch (error) {
+      console.error("Error sending email:", error);
+      alert("An error occurred while sending the email.");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // Function to fetch emails (inbox)
+  const fetchEmails = async () => {
+    try {
+      setIsLoading(true); // Indicate loading while fetching emails
+      const response = await fetch("http://localhost:5000/emails", {
+        method: "GET",
+      });
+      const emailData = await response.json();
+      setEmails(emailData); // Store emails in state
+    } catch (error) {
+      console.error("Error fetching emails:", error);
+      alert("An error occurred while fetching the emails.");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   return (
     <Router>
       <div className="app-container">
@@ -55,7 +102,17 @@ const App = () => {
           <Route path="/chat" element={<Chat />} />
           <Route path="/voice" element={<Voice />} />
           <Route path="/video" element={<Video />} />
-          <Route path="/email" element={<Email />} />
+          <Route
+            path="/email"
+            element={
+              <Email
+                emails={emails}
+                fetchEmails={fetchEmails}
+                handleSendEmail={handleSendEmail}
+                isLoading={isLoading}
+              />
+            }
+          />
           <Route path="/sms" element={<SMS />} />
           <Route
             path="/dashboard"

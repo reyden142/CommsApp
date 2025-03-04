@@ -1,6 +1,7 @@
 // src/components/Chat.js
 import React, { useState, useEffect } from "react";
 import io from "socket.io-client";
+import { useUser } from "../context/UserContext";
 import "./Chat.css";
 
 const socket = io("http://192.168.1.15:5000", {
@@ -30,43 +31,50 @@ socket.on("reconnect_failed", () => {
 const Chat = () => {
   const [message, setMessage] = useState("");
   const [messages, setMessages] = useState([]);
-  const user = "client"; // Default to client, change as needed
-  const sender = "User"; // Replace with dynamic user name if needed
+  const { user } = useUser(); // Get the logged-in user information
 
   useEffect(() => {
     socket.on("connect", () => {
       console.log("Connected to server");
+
+      // Send a test message when connected
+      const testMessage = {
+        sender: user.email,
+        message: "Test message from frontend",
+        attachmentUrl: "",
+      };
+      console.log("Sending test message:", testMessage);
+      socket.emit("sendMessage", testMessage);
     });
 
     socket.on("disconnect", () => {
       console.log("Disconnected from server");
     });
 
-    // Listen for chat messages from the server
-    socket.on("chatMessage", (msg) => {
-      console.log("Received message:", msg); // Log the message received
+    // Listen for received messages
+    socket.on("receiveMessage", (msg) => {
+      console.log("Received message:", msg); // Log the received message
       setMessages((prevMessages) => [...prevMessages, msg]);
-    });
-
-    // Listen for chat history from the server
-    socket.on("chatHistory", (msgs) => {
-      console.log("Received chat history:", msgs); // Log the chat history received
-      setMessages(msgs);
     });
 
     // Clean up the socket event listeners on component unmount
     return () => {
-      socket.off("chatMessage");
-      socket.off("chatHistory");
+      socket.off("connect");
+      socket.off("disconnect");
+      socket.off("receiveMessage");
     };
-  }, []);
+  }, [user]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    const msg = { text: message, user, sender };
+    const msg = { sender: user.email, message, attachmentUrl: "" }; // Use logged-in user's email
     console.log("Sending message:", msg); // Log the message being sent
-    socket.emit("chatMessage", msg);
+    socket.emit("sendMessage", msg); // Ensure event name matches backend
     setMessage("");
+  };
+
+  const getUsername = (email) => {
+    return email.split("@")[0];
   };
 
   return (
@@ -74,9 +82,17 @@ const Chat = () => {
       <h2>Chat Room</h2>
       <div className="messages">
         {messages.map((msg, index) => (
-          <div key={index} className={`message ${msg.user}`}>
-            <div className="message-sender">{msg.sender}</div>
-            <div className="message-text">{msg.text}</div>
+          <div
+            key={index}
+            className={`message ${
+              msg.sender === user.email ? "client" : "admin"
+            }`}
+          >
+            <div className="message-sender">
+              {getUsername(msg.sender)} {msg.role ? `(${msg.role})` : ""}
+            </div>{" "}
+            {/* Display username and role */}
+            <div className="message-text">{msg.message}</div>
           </div>
         ))}
       </div>

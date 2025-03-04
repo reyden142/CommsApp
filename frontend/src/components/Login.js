@@ -1,6 +1,8 @@
+// src/components/Login.js
 import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import axios from "axios";
+import { useUser } from "../context/UserContext";
 import "./Login.css";
 
 const Login = () => {
@@ -8,6 +10,7 @@ const Login = () => {
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const navigate = useNavigate();
+  const { setUser } = useUser();
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -24,6 +27,11 @@ const Login = () => {
       console.log("Login successful. Response:", response.data);
       localStorage.setItem("token", response.data.token);
       console.log("Token stored:", localStorage.getItem("token"));
+
+      // Set user information in context
+      const user = { email: username, role: response.data.role };
+      setUser(user);
+
       navigate("/dashboard");
     } catch (err) {
       if (err.response && err.response.data && err.response.data.message) {

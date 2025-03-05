@@ -17,6 +17,7 @@ import Video from "./components/Video";
 import Email from "./components/Email";
 import SMS from "./components/SMS";
 import "./App.css";
+import ErrorBoundary from "./components/ErrorBoundary"; // Import ErrorBoundary
 
 const App = () => {
   // State to store any email-related information
@@ -53,9 +54,7 @@ const App = () => {
   const fetchEmails = async () => {
     try {
       setIsLoading(true); // Indicate loading while fetching emails
-      const response = await fetch("http://localhost:5000/emails", {
-        method: "GET",
-      });
+      const response = await fetch("http://localhost:5000/receive-emails-imap"); // Use your IMAP route
       const emailData = await response.json();
       setEmails(emailData); // Store emails in state
     } catch (error) {
@@ -105,12 +104,16 @@ const App = () => {
           <Route
             path="/email"
             element={
-              <Email
-                emails={emails}
-                fetchEmails={fetchEmails}
-                handleSendEmail={handleSendEmail}
-                isLoading={isLoading}
-              />
+              <ErrorBoundary>
+                {" "}
+                {/* Wrap Email with ErrorBoundary */}
+                <Email
+                  emails={emails}
+                  fetchEmails={fetchEmails}
+                  handleSendEmail={handleSendEmail}
+                  isLoading={isLoading}
+                />
+              </ErrorBoundary>
             }
           />
           <Route path="/sms" element={<SMS />} />

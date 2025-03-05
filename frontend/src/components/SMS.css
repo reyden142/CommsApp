@@ -94,3 +94,7 @@
 .send-button:hover {
   background-color: #218838;
 }
+
+.Toastify__toast-container {
+  z-index: 9999;
+}

@@ -16,14 +16,14 @@ const server = http.createServer(app);
 // CORS Configuration (Allow requests from localhost:3000)
 app.use(
   cors({
-    origin: "http://localhost:3000", // Make sure to update if you're deploying to production
+    origin: "http://192.168.1.15:3000", // Make sure to update if you're deploying to production
   })
 );
 
 // Socket.IO setup
 const io = socketIo(server, {
   cors: {
-    origin: "http://localhost:3000", // Ensure this matches your frontend URL
+    origin: "http://192.168.1.15:3000", // Ensure this matches your frontend URL
     methods: ["GET", "POST"],
   },
 });
@@ -36,6 +36,14 @@ mongoose
   })
   .then(() => console.log("MongoDB connected"))
   .catch((err) => console.log(err));
+
+const smsMessageSchema = new mongoose.Schema({
+  from: String,
+  message: String,
+  status: String, // Added status field
+});
+
+const SmsMessage = mongoose.model("SmsMessage", smsMessageSchema);
 
 // Middleware
 app.use(express.json());
@@ -54,6 +62,12 @@ const client = new twilio(accountSid, authToken);
 
 // Message Storage (could be replaced with MongoDB for persistence)
 let smsMessages = [];
+
+// Log all incoming requests
+app.use((req, res, next) => {
+  console.log(`Incoming request: ${req.method} ${req.url}`);
+  next();
+});
 
 // Twilio SMS Routes - Sending SMS
 app.post("/send-sms", async (req, res) => {
@@ -95,31 +109,58 @@ app.post("/send-sms", async (req, res) => {
 });
 
 // Twilio SMS Routes - Receiving SMS
-app.post("/incoming-sms", (req, res) => {
-  console.log("Incoming SMS body:", req.body); // Log the incoming body to check what Twilio is sending
+app.post("/incoming-sms", async (req, res) => {
+  try {
+    console.log("Incoming SMS request headers:", req.headers);
+    console.log("Incoming SMS request body:", req.body);
 
-  const { From, Body } = req.body;
+    const { From, Body } = req.body;
 
-  // Validate the incoming request from Twilio
-  if (!From || !Body) {
-    console.error("Invalid incoming SMS request:", req.body);
-    return res.status(400).send("Invalid SMS request");
+    // Validate the incoming request from Twilio
+    if (!From || !Body) {
+      console.error("Invalid incoming SMS request:", req.body);
+      return res.status(400).send("Invalid SMS request");
+    }
+
+    // Save the incoming message to MongoDB
+    const smsMessage = new SmsMessage({ from: From, message: Body });
+    await smsMessage.save();
+
+    console.log(`Received message from ${From}: ${Body}`);
+
+    // Emit the incoming message to connected clients via Socket.IO
+    io.emit("receiveSMS", { from: From, message: Body });
+
+    res.set("Content-Type", "text/plain"); // Explicitly set Content-Type
+    res.sendStatus(200); // Respond back with HTTP 200 to acknowledge successful handling
+  } catch (error) {
+    console.error("Error handling incoming SMS:", error);
+    res.status(500).send("Error processing incoming SMS");
   }
-
-  // Store the incoming message (could be saved in DB)
-  smsMessages.push({ from: From, message: Body });
-  console.log(`Received message from ${From}: ${Body}`);
-
-  // Emit the incoming message to connected clients via Socket.IO
-  io.emit("receiveSMS", { from: From, message: Body });
-
-  res.sendStatus(200); // Respond back with HTTP 200 to acknowledge successful handling
 });
 
 // Get SMS messages (for fetching inbox)
-app.get("/sms-messages", (req, res) => {
-  console.log("Fetching SMS messages. Current messages:", smsMessages); // Log the stored messages
-  res.send(smsMessages); // Send back the array of stored messages
+app.get("/sms-messages", async (req, res) => {
+  try {
+    const messages = await SmsMessage.find().exec();
+    res.send(messages);
+  } catch (error) {
+    console.error("Error fetching SMS messages:", error);
+    res.status(500).send("Error fetching messages");
+  }
+});
+
+// Get received SMS messages
+app.get("/received-sms", async (req, res) => {
+  try {
+    const messages = await SmsMessage.find({ status: "received" })
+      .limit(5)
+      .exec();
+    res.send(messages);
+  } catch (error) {
+    console.error("Error fetching received SMS messages:", error);
+    res.status(500).send("Error fetching messages");
+  }
 });
 
 let userCount = 0; // Track the number of users connected

@@ -1,6 +1,8 @@
 import React, { useState, useEffect, useRef } from "react";
 import io from "socket.io-client";
 import "./SMS.css";
+import { ToastContainer, toast } from "react-toastify";
+import "react-toastify/dist/ReactToastify.css";
 
 const API_URL = process.env.REACT_APP_API_URL || "http://192.168.1.15:5000";
 
@@ -18,7 +20,12 @@ function SMS() {
     fetchMessages();
 
     socketRef.current.on("receiveSMS", (sms) => {
-      setInboxMessages((prevMessages) => [...prevMessages, sms]);
+      console.log("Received SMS:", sms);
+      setInboxMessages((prevMessages) => {
+        const newMessages = [...prevMessages, sms];
+        console.log("Updated inbox messages:", newMessages);
+        return newMessages;
+      });
     });
 
     socketRef.current.on("connect_error", (err) => {
@@ -52,6 +59,7 @@ function SMS() {
 
   const handleInboxClick = () => {
     setActiveSection("inbox");
+    fetchMessages(); // Fetch messages when switching to inbox
   };
 
   const handleNewMessageClick = () => {
@@ -60,7 +68,7 @@ function SMS() {
 
   const handleSend = async () => {
     if (!phoneNumber || !message) {
-      return alert("Phone number and message cannot be empty.");
+      return toast.error("Phone number and message cannot be empty.");
     }
 
     try {
@@ -74,9 +82,10 @@ function SMS() {
       setMessage("");
       setActiveSection("inbox");
       fetchMessages();
+      toast.success("Message sent!"); // Display a success toast
     } catch (error) {
       console.error("Error sending message:", error);
-      alert("Error sending message.");
+      toast.error("Error sending message.");
     } finally {
       setLoading(false);
     }
@@ -151,6 +160,7 @@ function SMS() {
           </button>
         </div>
       )}
+      <ToastContainer />
     </div>
   );
 }

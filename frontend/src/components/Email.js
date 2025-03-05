@@ -8,12 +8,15 @@ const Email = () => {
   const [message, setMessage] = useState("");
   const [file, setFile] = useState(null);
   const [emails, setEmails] = useState([]); // Store received emails
+  const [loading, setLoading] = useState(false); // Loading state
 
   const handleFileChange = (e) => {
     setFile(e.target.files[0]);
   };
 
   const handleSend = async () => {
+    setLoading(true); // Set loading to true when sending starts
+
     const emailData = new FormData();
     emailData.append("to", to);
     emailData.append("subject", subject);
@@ -39,13 +42,14 @@ const Email = () => {
     } catch (error) {
       console.error("Error sending email:", error);
       alert("Error sending email");
+    } finally {
+      setLoading(false); // Set loading to false when the sending process is done
     }
   };
 
   const fetchEmails = async () => {
     try {
-      // Get the access token from localStorage, state, or any other storage
-      const accessToken = localStorage.getItem("accessToken"); // Or wherever you store it
+      const accessToken = localStorage.getItem("accessToken");
 
       if (!accessToken) {
         throw new Error("Access token not found");
@@ -54,7 +58,7 @@ const Email = () => {
       const response = await fetch("http://localhost:5000/receive-emails", {
         method: "GET",
         headers: {
-          Authorization: `Bearer ${accessToken}`, // Use the actual access token here
+          Authorization: `Bearer ${accessToken}`,
         },
       });
 
@@ -64,14 +68,13 @@ const Email = () => {
 
       const data = await response.json();
       console.log("Emails fetched successfully:", data);
-      setEmails(data); // Store the fetched emails in the state
+      setEmails(data);
     } catch (error) {
-      console.error("Error fetching emails:", error); // Log the error
-      alert("Error fetching emails: " + error.message); // Optionally alert the user
+      console.error("Error fetching emails:", error);
+      alert("Error fetching emails: " + error.message);
     }
   };
 
-  // Fetch emails when the component mounts
   useEffect(() => {
     fetchEmails();
   }, []);
@@ -102,8 +105,7 @@ const Email = () => {
                 emails.map((email, index) => (
                   <div className="email-item" key={index}>
                     <p>Email #{index + 1}</p>
-                    <p>Subject: {email.snippet}</p>{" "}
-                    {/* Adjust this based on the structure of the fetched email */}
+                    <p>Subject: {email.snippet}</p>
                   </div>
                 ))
               )}
@@ -146,10 +148,16 @@ const Email = () => {
               {file && <span>{file.name}</span>}
             </div>
             <div className="compose-actions">
-              <button className="btn" onClick={handleSend}>
-                Send
+              <button className="btn" onClick={handleSend} disabled={loading}>
+                {loading ? "Sending..." : "Send"}
               </button>
             </div>
+            {loading && (
+              <div className="loading-spinner">
+                <div className="spinner"></div>
+                <p>Sending email, please wait...</p>
+              </div>
+            )}
           </>
         )}
       </div>

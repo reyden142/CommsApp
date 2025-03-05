@@ -9,7 +9,7 @@ const cors = require("cors");
 const twilio = require("twilio");
 const nodemailer = require("nodemailer");
 const multer = require("multer"); // For handling multipart form-data (file uploads)
-const { google } = require("googleapis"); // For Gmail API (if receiving Gmail)
+const { google } = require("googleapis"); // For Gmail API (OAuth2)
 
 dotenv.config();
 
@@ -78,7 +78,7 @@ app.post("/send-sms", async (req, res) => {
 
     res.send({ success: true, messageSid: result.sid });
   } catch (error) {
-    console.error("Error sending SMS:", error); // Log the full error object
+    console.error("Error sending SMS:", error);
     res.status(500).send({
       success: false,
       error: error.message,
@@ -149,10 +149,10 @@ app.post("/send-email", upload.single("file"), async (req, res) => {
 
   try {
     const info = await emailTransporter.sendMail(mailOptions);
-    console.log("Email sent successfully:", info); // Log email send success
+    console.log("Email sent successfully:", info);
     res.send({ success: true, messageId: info.messageId });
   } catch (error) {
-    console.error("Error sending email:", error); // Log error details
+    console.error("Error sending email:", error);
     res.status(500).send({
       success: false,
       error: error.message,
@@ -160,21 +160,98 @@ app.post("/send-email", upload.single("file"), async (req, res) => {
   }
 });
 
-// Receiving Emails: Gmail API or IMAP Setup Here
-// Fetching emails using Gmail API
+// OAuth2 Authorization URL Route
+app.get("/auth-url", (req, res) => {
+  // Load the client credentials from the credentials.json file
+  const credentials = JSON.parse(
+    fs.readFileSync(path.join(__dirname, "credentials.json"))
+  );
 
-app.get("/receive-emails", async (req, res) => {
+  const { client_id, client_secret, redirect_uris } = credentials.installed;
+
+  const oauth2Client = new google.auth.OAuth2(
+    client_id,
+    client_secret,
+    redirect_uris[0]
+  );
+
+  const authUrl = oauth2Client.generateAuthUrl({
+    access_type: "offline",
+    scope: ["https://www.googleapis.com/auth/gmail.readonly"],
+  });
+
+  res.send({ url: authUrl });
+});
+
+// OAuth2 Callback Route
+app.get("/oauth2callback", async (req, res) => {
+  // Load the client credentials from the credentials.json file
+  const credentials = JSON.parse(
+    fs.readFileSync(path.join(__dirname, "credentials.json"))
+  );
+  const { client_id, client_secret, redirect_uris } = credentials.installed;
+
+  const oauth2Client = new google.auth.OAuth2(
+    client_id,
+    client_secret,
+    redirect_uris[0]
+  );
+
+  const { code } = req.query;
+
   try {
-    const oauth2Client = new google.auth.OAuth2(
-      process.env.GOOGLE_CLIENT_ID,
-      process.env.GOOGLE_CLIENT_SECRET,
-      process.env.REDIRECT_URI // Make sure this matches your OAuth setup
+    const { tokens } = await oauth2Client.getToken(code);
+    oauth2Client.setCredentials(tokens);
+
+    // Save the refresh token in a file for future use
+    fs.writeFileSync(
+      path.join(__dirname, "tokens.json"),
+      JSON.stringify(tokens)
     );
 
-    // Set credentials (you would need to implement OAuth2 flow first to get tokens)
-    oauth2Client.setCredentials({
-      refresh_token: process.env.GOOGLE_REFRESH_TOKEN, // Refresh token from your OAuth flow
-    });
+    console.log("Tokens:", tokens);
+    res.send("Authentication successful! You can close this window.");
+  } catch (error) {
+    console.error("Error getting tokens:", error);
+    res.status(500).send("Error during authentication");
+  }
+});
+
+// Fetching emails using Gmail API
+app.get("/receive-emails", async (req, res) => {
+  try {
+    // Check for the Authorization header
+    const authHeader = req.headers.authorization;
+
+    if (!authHeader) {
+      console.log("Authorization header not found.");
+      return res.status(401).json({ error: "Authorization header missing" });
+    }
+
+    // Extract the token
+    const token = authHeader.split(" ")[1]; // Assuming "Bearer <token>" format
+
+    if (!token) {
+      console.log("Access token not found in Authorization header.");
+      return res.status(401).json({ error: "Access token not found" });
+    }
+
+    console.log("Received access token:", token);
+
+    // Load the client credentials and tokens from their respective files
+    const credentials = JSON.parse(
+      fs.readFileSync(path.join(__dirname, "credentials.json"))
+    );
+    const { client_id, client_secret, redirect_uris } = credentials.installed;
+
+    const oauth2Client = new google.auth.OAuth2(
+      client_id,
+      client_secret,
+      redirect_uris[0]
+    );
+
+    // Set the access token received from the frontend
+    oauth2Client.setCredentials({ access_token: token });
 
     const gmail = google.gmail({ version: "v1", auth: oauth2Client });
 
@@ -182,13 +259,30 @@ app.get("/receive-emails", async (req, res) => {
     const result = await gmail.users.messages.list({
       userId: "me",
       labelIds: ["INBOX"],
-      maxResults: 10, // Limit to 10 emails
+      maxResults: 10,
     });
 
     const messages = result.data.messages || [];
-    res.send(messages);
+    if (messages.length === 0) {
+      console.log("No new messages.");
+      return res.status(200).send({ success: true, messages: [] }); // or messages if you want to send the empty array.
+    }
+
+    console.log("Fetched messages:", messages);
+    res.send({ success: true, messages });
   } catch (error) {
     console.error("Error fetching emails:", error);
+
+    if (
+      error.response &&
+      error.response.data &&
+      error.response.data.error === "invalid_grant"
+    ) {
+      console.error(
+        "Invalid or expired refresh token. Please re-authenticate."
+      );
+    }
+
     res.status(500).send({
       success: false,
       error: error.message,

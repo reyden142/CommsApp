@@ -1,0 +1,114 @@
+.chat-container {
+  width: 100%;
+  max-width: 600px;
+  margin: 0 auto;
+  padding: 20px;
+  border: 1px solid #ccc;
+  border-radius: 10px;
+  background-color: #f9f9f9;
+  display: flex;
+  flex-direction: column;
+  height: 80vh;
+  font-family: Arial, sans-serif; /* Add a consistent font family */
+}
+
+.messages {
+  flex: 1;
+  overflow-y: auto;
+  margin-bottom: 20px;
+  padding: 10px;
+  display: flex;
+  flex-direction: column;
+}
+
+.message {
+  margin: 10px 0;
+  display: flex;
+  flex-direction: column;
+  max-width: 70%;
+}
+
+.message-sender {
+  font-weight: bold;
+  margin-bottom: 5px;
+}
+
+.message-text {
+  padding: 10px;
+  border-radius: 15px;
+  word-wrap: break-word;
+}
+
+.message.client {
+  align-self: flex-end;
+  text-align: right;
+}
+
+.message.client .message-text {
+  background-color: #e1f5fe;
+}
+
+.message.admin {
+  align-self: flex-start;
+  text-align: left;
+}
+
+.message.admin .message-text {
+  background-color: #d1e7dd;
+}
+
+.message-attachment {
+  margin-top: 5px;
+  display: flex; /* Use flexbox for vertical alignment */
+  align-items: center; /* Vertically align items */
+  max-width: 100%; /* Ensure enough width */
+  padding: 5px; /* Add some padding */
+}
+
+.message-attachment a {
+  color: #007bff;
+  text-decoration: none;
+  margin-right: 10px; /* Add some space between link and image */
+}
+
+.message-attachment a:hover {
+  text-decoration: underline;
+  color: #0056b3; /* Enhance hover effect */
+}
+
+.message-attachment img {
+  max-width: 100px; /* Limit image width */
+  max-height: 100px; /* Limit image height */
+  border-radius: 5px; /* Optional: Add some rounding to the image */
+}
+
+.message-form {
+  display: flex;
+  align-items: center;
+}
+
+.message-input {
+  flex: 1;
+  padding: 10px;
+  border: 1px solid #ccc;
+  border-radius: 20px;
+  margin-right: 10px;
+}
+
+.file-input {
+  margin-right: 10px;
+}
+
+.send-button {
+  padding: 10px 20px;
+  border: none;
+  border-radius: 20px;
+  background-color: #007bff;
+  color: white;
+  cursor: pointer;
+}
+
+.send-button:hover {
+  background-color: #0056b3;
+  box-shadow: 0 0 10px rgba(0, 0, 0, 0.2); /* Add a shadow on hover */
+}

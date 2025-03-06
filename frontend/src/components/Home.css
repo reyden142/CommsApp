@@ -1,0 +1,130 @@
+/* src/components/Home.css */
+
+/* General Styles */
+body {
+    font-family: sans-serif;
+    margin: 0;
+    padding: 0;
+    background-color: #f7f7f7; /* Light background */
+    color: #333; /* Dark gray text */
+}
+
+/* Minimal Text Style */
+.home-container.minimal-text {
+    max-width: 800px;
+    margin: 20px auto;
+    padding: 20px;
+    background-color: #fff; /* White container */
+    border: 1px solid #ddd; /* Light gray border */
+    border-radius: 5px;
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1); /* Subtle shadow */
+}
+
+/* Top Bar */
+.top-bar {
+    padding-bottom: 10px;
+    border-bottom: 1px solid #ddd;
+    margin-bottom: 20px;
+    background-color: #e9ecef; /* Light gray background */
+    padding: 15px;
+    border-radius: 5px;
+}
+
+.top-bar h1 {
+    font-size: 1.5em;
+    margin: 0;
+    color: #007bff; /* Primary color for emphasis */
+}
+
+/* Message List */
+.message-list h2 {
+    font-size: 1.2em;
+    margin-bottom: 10px;
+    color: #555; /* Slightly lighter than body text */
+}
+
+.message-list ul {
+    list-style: none;
+    padding: 0;
+}
+
+.message-item {
+    padding: 10px;
+    border-bottom: 1px solid #eee;
+    display: flex;
+    justify-content: space-between;
+    background-color: #f9f9f9; /* Very light gray */
+    border-radius: 3px;
+    margin-bottom: 5px;
+}
+
+.message-item:last-child {
+    border-bottom: none;
+}
+
+.message-sender {
+    font-weight: bold;
+    color: #333;
+}
+
+.message-subject {
+    color: #666;
+}
+
+/* Visual Placeholder */
+.visual-placeholder {
+    margin-top: 20px;
+    display: flex;
+    justify-content: space-around; /* Distribute items evenly */
+    align-items: center; /* Center items vertically */
+    padding: 20px;
+    background-color: #f0f0f0; /* Light background */
+    border-radius: 5px;
+}
+
+.circle {
+    width: 50px;
+    height: 50px;
+    border-radius: 50%;
+    background-color: #007bff; /* Primary color */
+}
+
+.rectangle {
+    width: 80px;
+    height: 40px;
+    background-color: #28a745; /* Success color */
+}
+
+.triangle {
+    width: 0;
+    height: 0;
+    border-left: 25px solid transparent;
+    border-right: 25px solid transparent;
+    border-bottom: 50px solid #dc3545; /* Danger color */
+}
+
+/* Footer */
+.footer {
+    text-align: center;
+    margin-top: 20px;
+    padding-top: 10px;
+    border-top: 1px solid #ddd;
+    font-size: 0.8em;
+    color: #777;
+}
+
+/* Loading and Error states */
+.loading,
+.error {
+    text-align: center;
+    margin-top: 20px;
+    padding: 10px;
+    border: 1px solid #ddd;
+    border-radius: 5px;
+    background-color: #f9f9f9;
+}
+
+.error {
+    color: #dc3545;
+    border-color: #dc3545;
+}

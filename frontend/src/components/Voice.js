@@ -11,6 +11,7 @@ const Voice = () => {
   const [call, setCall] = useState(null);
   const [incomingCallVisible, setIncomingCallVisible] = useState(false);
   const [incomingCall, setIncomingCall] = useState(null);
+  const [error, setError] = useState(null);
   const deviceRef = useRef(null);
 
   useEffect(() => {
@@ -29,17 +30,18 @@ const Voice = () => {
 
           newDevice.on("error", (error) => {
             console.error("Twilio Device Error:", error);
+            setError("Error setting up device.");
           });
 
           newDevice.on("incoming", (incomingCall) => {
             console.log("Incoming Call:", incomingCall);
-            console.log("Incoming call parameters:", incomingCall.parameters);
             setIncomingCallVisible(true);
             setIncomingCall(incomingCall);
           });
         }
       } catch (error) {
         console.error("Error setting up device:", error);
+        setError("Error initializing Twilio device.");
       }
     };
 
@@ -73,6 +75,7 @@ const Voice = () => {
       }
     } catch (error) {
       console.error("Error fetching token:", error);
+      setError("Error fetching token from the backend.");
       throw error; // Re-throw to handle error
     }
   };
@@ -82,41 +85,81 @@ const Voice = () => {
     setPhoneNumber((prev) => prev + digit);
   };
 
+  // Validate phone number format (E.164 format)
+  const validatePhoneNumber = (number) => {
+    const phoneRegex = /^\+?[1-9]\d{1,14}$/; // E.164 format validation
+    return phoneRegex.test(number);
+  };
+
   // Handle initiating a call
   const handleCall = async () => {
-    if (phoneNumber) {
-      try {
-        console.log("Initiating call to:", phoneNumber);
-        const params = { To: phoneNumber }; // Twilio uses 'To' for outgoing calls
-        const call = await deviceRef.current.connect(params);
-        setCall(call);
+    if (!phoneNumber) {
+      setError("Please enter a phone number.");
+      return;
+    }
+
+    // Check if the phone number is valid and in the correct format
+    if (!validatePhoneNumber(phoneNumber)) {
+      setError("Invalid phone number format. Use E.164 format.");
+      return;
+    }
+
+    try {
+      console.log("Initiating call to:", phoneNumber);
+
+      // Make a request to the backend to initiate the call
+      const response = await fetch(`${API_URL}/make_call`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ to: phoneNumber }),
+      });
+
+      const data = await response.json();
+
+      if (response.ok) {
+        console.log("Call initiated successfully!", data);
         setCallActive(true);
-        console.log("Call initiated successfully!");
-      } catch (error) {
-        console.error("Error initiating call:", error);
+        setCall(data.call); // Set call data to be used for hangup
+        setError(null); // Clear any errors
+      } else {
+        setError(data.message || "Failed to initiate call");
+        console.error("Failed to initiate call:", data.message);
       }
+    } catch (error) {
+      console.error("Error initiating call:", error);
+      setError("Failed to initiate call. Check if the number is verified.");
     }
   };
 
   // Handle hanging up the call
   const handleHangup = () => {
     if (call) {
-      call.disconnect();
+      console.log("Disconnecting call...");
+      call.disconnect(); // Disconnecting the active call
       setCallActive(false);
+      setCall(null); // Reset the call object after disconnecting
+      setError(null); // Clear any errors
       console.log("Call disconnected");
     }
   };
 
   // Accept incoming call
-  const acceptCall = () => {
+  const acceptCall = async () => {
     if (incomingCall) {
       console.log("Accepting incoming call...");
-      incomingCall.accept().then((call) => {
+      try {
+        const acceptedCall = await incomingCall.accept();
         console.log("Call accepted!");
         setCallActive(true);
-        setCall(call);
+        setCall(acceptedCall);
         setIncomingCallVisible(false); // Hide the popup
-      });
+        setError(null); // Clear any errors
+      } catch (error) {
+        console.error("Error accepting call:", error);
+        setError("Error accepting incoming call.");
+      }
     }
   };
 
@@ -129,12 +172,17 @@ const Voice = () => {
     }
   };
 
+  // Handle deleting one digit at a time
+  const handleDelete = () => {
+    setPhoneNumber((prev) => prev.slice(0, -1)); // Removes one character from the end
+  };
+
   return (
     <div className="call-container">
       <div className="dialpad-container">
         <div className="phone-number-display">{phoneNumber}</div>
         <div className="dialpad">
-          {[1, 2, 3, 4, 5, 6, 7, 8, 9, "*", 0, "#"].map((digit) => (
+          {[1, 2, 3, 4, 5, 6, 7, 8, 9, "+", 0, "#"].map((digit) => (
             <button
               key={digit}
               className="digit-button"
@@ -144,6 +192,7 @@ const Voice = () => {
             </button>
           ))}
         </div>
+        {error && <div className="error-message">{error}</div>}
         <div className="call-actions">
           {callActive ? (
             <button className="hangup-button" onClick={handleHangup}>
@@ -156,7 +205,7 @@ const Voice = () => {
               </button>
               <button
                 className="delete-button"
-                onClick={() => setPhoneNumber("")}
+                onClick={handleDelete} // Update to use handleDelete
               >
                 <FaBackspace />
               </button>
@@ -175,10 +224,6 @@ const Voice = () => {
             Reject
           </button>
         </div>
-      )}
-
-      {!incomingCallVisible && !callActive && (
-        <div>Waiting for incoming calls...</div>
       )}
     </div>
   );

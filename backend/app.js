@@ -53,14 +53,14 @@ app.get("/api/token", (req, res) => {
   const identity = "alice"; // You can assign this dynamically if needed
 
   const voiceGrant = new VoiceGrant({
-    outgoingApplicationSid: TWILIO_APP_SID,
+    outgoingApplicationSid: process.env.TWIML_APP_SID,
     incomingAllow: true, // Allow incoming calls
   });
 
   const token = new AccessToken(
-    TWILIO_ACCOUNT_SID,
-    TWILIO_API_KEY,
-    TWILIO_API_SECRET,
+    process.env.TWILIO_ACCOUNT_SID,
+    process.env.TWILIO_API_KEY,
+    process.env.TWILIO_API_SECRET,
     {
       identity: identity,
     }
@@ -71,10 +71,6 @@ app.get("/api/token", (req, res) => {
 
   // Send the token back to the frontend
   res.json({ token: token.toJwt() });
-});
-
-app.listen(5000, () => {
-  console.log("Server running on port 5000");
 });
 
 // Handle Incoming Calls
@@ -98,20 +94,27 @@ app.post("/voice", async (req, res) => {
   }
 });
 
-// Make a Call Endpoint (Optional)
+// Make a Call Endpoint (Updated)
 app.post("/make_call", async (req, res) => {
+  console.log("Making a call...");
+
   const { to } = req.body;
 
   if (!to) {
-    res.status(400).json({ success: false, message: "Missing 'to' parameter" });
-    return;
+    return res
+      .status(400)
+      .json({ success: false, message: "Missing 'to' parameter" });
   }
 
   try {
+    // Log the phone number to check if it's being passed correctly
+    console.log(`Dialing phone number: ${to}`);
+
+    // Dial a non-Twilio number (e.g., a personal mobile phone number)
     const call = await client.calls.create({
-      from: twilioPhoneNumber, // Use your Twilio number
-      to: to, // The number you wish to dial
-      url: "http://demo.twilio.com/docs/voice.xml", // TwiML instructions for the call
+      from: twilioPhoneNumber, // Your verified Twilio number
+      to: to, // The phone number you want to call (e.g., a SIM number)
+      url: "http://your-server-url.com/your-twiml-url", // This should return TwiML instructions
     });
 
     console.log(`Call initiated: ${call.sid}`);
@@ -120,6 +123,20 @@ app.post("/make_call", async (req, res) => {
     console.error("Error making call:", error);
     res.status(500).json({ success: false, message: "Error making call" });
   }
+});
+
+// TwiML URL - Handle the call response
+app.get("/your-twiml-url", (req, res) => {
+  const twiml = new twilio.twiml.VoiceResponse();
+
+  // Use the 'to' number dynamically in the dial number
+  const dial = twiml.dial();
+  dial.number(req.query.to); // Use the 'to' parameter from the query string
+
+  twiml.say("Hello, your call is connected!");
+
+  res.type("text/xml");
+  res.send(twiml.toString());
 });
 
 // Error Handling for Unknown Routes

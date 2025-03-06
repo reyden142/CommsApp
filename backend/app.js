@@ -52,11 +52,6 @@ if (!process.env.TWILIO_ACCOUNT_SID || !process.env.TWILIO_AUTH_TOKEN) {
   throw new Error("Missing Twilio credentials");
 }
 
-const accountSid = process.env.TWILIO_ACCOUNT_SID;
-const authToken = process.env.TWILIO_AUTH_TOKEN;
-const twilioPhoneNumber = "+16015899930"; // Your permanent Twilio number
-const client = twilio(accountSid, authToken);
-
 // Middleware
 app.use(cors());
 app.use(express.json());

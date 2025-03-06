@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import io from "socket.io-client";
 import axios from "axios";
 import { useUser } from "../context/UserContext";
@@ -30,39 +30,35 @@ socket.on("reconnect_failed", () => {
 });
 
 const Chat = () => {
+  const fileInputRef = useRef(null); // Create a ref for the file input
   const [message, setMessage] = useState("");
   const [messages, setMessages] = useState([]);
   const [file, setFile] = useState(null);
-  const [fileName, setFileName] = useState(""); // Store original file name
-  const { user } = useUser(); // Get the logged-in user information
+  const [fileName, setFileName] = useState("");
+  const { user } = useUser();
+  const [listIds, setListIds] = useState([1, 2, 3]); // Example listIds
+
+  const resetFileInput = () => {
+    if (fileInputRef.current) {
+      fileInputRef.current.value = null; // Reset the file input value
+    }
+  };
 
   useEffect(() => {
     if (user) {
       socket.on("connect", () => {
         console.log("Connected to server");
-
-        // Send a test message when connected
-        const testMessage = {
-          sender: user.email,
-          message: "Test message from frontend",
-          attachmentUrl: "",
-          fileName: "",
-        };
-        console.log("Sending test message:", testMessage);
-        socket.emit("sendMessage", testMessage);
       });
 
       socket.on("disconnect", () => {
         console.log("Disconnected from server");
       });
 
-      // Listen for received messages
       socket.on("receiveMessage", (msg) => {
-        console.log("Received message:", msg); // Log the received message
+        console.log("Received message:", msg);
         setMessages((prevMessages) => [...prevMessages, msg]);
       });
 
-      // Clean up the socket event listeners on component unmount
       return () => {
         socket.off("connect");
         socket.off("disconnect");
@@ -71,28 +67,28 @@ const Chat = () => {
     }
   }, [user]);
 
-  // Handle file change (upload)
   const handleFileChange = (e) => {
     const selectedFile = e.target.files[0];
     if (selectedFile) {
       setFile(selectedFile);
-      setFileName(selectedFile.name); // Store original file name
+      setFileName(selectedFile.name);
       console.log("File selected:", selectedFile.name);
     }
   };
 
-  // Handle message submission (including file upload)
   const handleSubmit = async (e) => {
     e.preventDefault();
     let attachmentUrl = "";
+    let serverListIds = [];
 
-    // Handle file upload if file exists
     if (file) {
+      console.log("File selected:", file); // Check if file is selected
+
       const formData = new FormData();
       formData.append("file", file);
+      formData.append("listIds", JSON.stringify(listIds));
 
       try {
-        // Send file to backend for uploading
         const response = await axios.post(
           "http://192.168.1.15:5000/upload",
           formData,
@@ -102,39 +98,40 @@ const Chat = () => {
             },
           }
         );
-
-        // Check for the response from backend
-        console.log("File uploaded successfully:", response); // Log the full response
-
-        // Get the file path from the response and assign it to attachmentUrl
+        console.log("Frontend Response:", response);
         attachmentUrl = response.data.filePath;
+        serverListIds = response.data.listIds;
+        console.log("File uploaded successfully:", response);
+        console.log("listIds from server:", serverListIds);
       } catch (err) {
         console.error("File upload failed", err);
       }
     }
 
-    // Construct message object with attachmentUrl and fileName
     if (user) {
+      let messageToSend = message;
+
       const msg = {
         sender: user.email,
-        message: message || fileName || "No message", // Use message or fileName
-        attachmentUrl, // URL from backend
-        fileName, // Send the original file name
+        message: messageToSend,
+        attachmentUrl,
+        fileName: file ? file.name : "",
+        listIds: serverListIds,
       };
 
-      console.log("Sending message:", msg); // Log message before sending
-      socket.emit("sendMessage", msg); // Emit the message through socket
+      console.log("Sending message:", msg); // Check the msg object
 
-      // Reset form after sending
+      socket.emit("sendMessage", msg);
+
       setMessage("");
       setFile(null);
-      setFileName(""); // Clear file name after sending
+      setFileName("");
+      resetFileInput(); // Reset the file input after sending
     } else {
       console.error("User is not logged in");
     }
   };
 
-  // Get username from email
   const getUsername = (email) => {
     return email.split("@")[0];
   };
@@ -144,14 +141,6 @@ const Chat = () => {
       <h2>Chat Room</h2>
       <div className="messages">
         {messages.map((msg, index) => {
-          console.log(`Rendering message #${index}:`, msg); // Check each message object
-
-          // Log details about the sender and message content
-          console.log(`Sender: ${msg.sender}`);
-          console.log(`Message: ${msg.message}`);
-          console.log(`Attachment URL: ${msg.attachmentUrl}`);
-          console.log(`File Name: ${msg.fileName}`);
-
           return (
             <div
               key={index}
@@ -159,21 +148,34 @@ const Chat = () => {
                 msg.sender === user?.email ? "client" : "admin"
               }`}
             >
-              <div className="message-sender">
-                {getUsername(msg.sender)} {msg.role ? `(${msg.role})` : ""}
-              </div>
-              <div className="message-text">{msg.message}</div>
-              {msg.attachmentUrl && (
+              <div className="message-sender">{getUsername(msg.sender)}</div>
+              {msg.message && <div className="message-text">{msg.message}</div>}
+              {msg.attachmentUrl && msg.fileName && (
                 <div className="message-attachment">
-                  {/* Check if the attachmentUrl exists before rendering the link */}
                   <a
                     href={msg.attachmentUrl}
                     target="_blank"
                     rel="noopener noreferrer"
-                    download
+                    download={msg.fileName}
                   >
-                    Download {msg.fileName || "Attachment"}
+                    {msg.fileName || "Attachment"}
                   </a>
+                  {/* Display image preview */}
+                  {[".jpg", ".png", ".jpeg", ".gif", ".bmp"].includes(
+                    msg.fileName.split(".").pop().toLowerCase()
+                  ) ? (
+                    <img
+                      src={msg.attachmentUrl}
+                      alt={msg.fileName}
+                      style={{ maxWidth: "100px" }}
+                    />
+                  ) : (
+                    // Display a placeholder for non-image files
+                    <i
+                      className="fas fa-file"
+                      style={{ fontSize: "24px", marginLeft: "10px" }}
+                    />
+                  )}
                 </div>
               )}
             </div>
@@ -191,6 +193,7 @@ const Chat = () => {
         />
         <div className="attachment-container">
           <input
+            ref={fileInputRef} // Assign the ref to the file input
             type="file"
             onChange={handleFileChange}
             className="file-input"

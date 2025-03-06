@@ -12,7 +12,9 @@ const Voice = () => {
   const [incomingCallVisible, setIncomingCallVisible] = useState(false);
   const [incomingCall, setIncomingCall] = useState(null);
   const [error, setError] = useState(null);
+  const [callDuration, setCallDuration] = useState(0);
   const deviceRef = useRef(null);
+  const timerRef = useRef(null);
 
   useEffect(() => {
     const setupDevice = async () => {
@@ -38,10 +40,18 @@ const Voice = () => {
             setIncomingCallVisible(true);
             setIncomingCall(incomingCall);
           });
+
+          newDevice.on("disconnect", () => {
+            console.log("Call disconnected.");
+            setCallActive(false);
+            setCall(null);
+            clearInterval(timerRef.current); // Clean up timer
+            setCallDuration(0); // Reset call duration
+          });
         }
       } catch (error) {
         console.error("Error setting up device:", error);
-        setError("Error initializing Twilio device.");
+        //setError("Error initializing Twilio device.");
       }
     };
 
@@ -52,6 +62,7 @@ const Voice = () => {
         console.log("Destroying device...");
         deviceRef.current.destroy(); // Clean up when component unmounts
       }
+      clearInterval(timerRef.current); // Clean up timer on unmount
     };
   }, []);
 
@@ -123,6 +134,7 @@ const Voice = () => {
         setCallActive(true);
         setCall(data.call); // Set call data to be used for hangup
         setError(null); // Clear any errors
+        startCallTimer(); // Start timer for outgoing calls
       } else {
         setError(data.message || "Failed to initiate call");
         console.error("Failed to initiate call:", data.message);
@@ -135,13 +147,20 @@ const Voice = () => {
 
   // Handle hanging up the call
   const handleHangup = () => {
+    console.log("Attempting to hang up the call...");
     if (call) {
-      console.log("Disconnecting call...");
+      console.log("Call object exists. Disconnecting...");
       call.disconnect(); // Disconnecting the active call
       setCallActive(false);
       setCall(null); // Reset the call object after disconnecting
+      clearInterval(timerRef.current); // Clean up timer
+      setCallDuration(0); // Reset call duration
       setError(null); // Clear any errors
       console.log("Call disconnected");
+    } else {
+      console.error("No active call to hang up.");
+      // Optionally, you can retry after a short delay if you suspect a race condition
+      setTimeout(() => handleHangup(), 500); // Retry after 500ms
     }
   };
 
@@ -151,9 +170,9 @@ const Voice = () => {
       console.log("Accepting incoming call...");
       try {
         const acceptedCall = await incomingCall.accept();
-        console.log("Call accepted!");
+        console.log("Call accepted!", acceptedCall);
         setCallActive(true);
-        setCall(acceptedCall);
+        setCall(acceptedCall); // Ensure this line updates the call state correctly
         setIncomingCallVisible(false); // Hide the popup
         setError(null); // Clear any errors
       } catch (error) {
@@ -177,9 +196,32 @@ const Voice = () => {
     setPhoneNumber((prev) => prev.slice(0, -1)); // Removes one character from the end
   };
 
+  // Function to start the call timer
+  const startCallTimer = () => {
+    timerRef.current = setInterval(() => {
+      setCallDuration((prevDuration) => prevDuration + 1);
+    }, 1000); // Increment every second
+  };
+
+  // Helper function to format duration
+  const formatDuration = (seconds) => {
+    const hours = Math.floor(seconds / 3600);
+    const minutes = Math.floor((seconds % 3600) / 60);
+    const secondsRemaining = seconds % 60;
+
+    return `${hours.toString().padStart(2, "0")}:${minutes
+      .toString()
+      .padStart(2, "0")}:${secondsRemaining.toString().padStart(2, "0")}`;
+  };
+
   return (
     <div className="call-container">
       <div className="dialpad-container">
+        {callActive && (
+          <p className="call-duration">
+            Call Duration: {formatDuration(callDuration)}
+          </p>
+        )}
         <div className="phone-number-display">{phoneNumber}</div>
         <div className="dialpad">
           {[1, 2, 3, 4, 5, 6, 7, 8, 9, "+", 0, "#"].map((digit) => (

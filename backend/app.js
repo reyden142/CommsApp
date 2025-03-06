@@ -13,9 +13,10 @@ const dotenv = require("dotenv");
 const cors = require("cors");
 const twilio = require("twilio");
 const nodemailer = require("nodemailer");
-const multer = require("multer"); // For handling multipart form-data (file uploads)
-const twilio = require("twilio");
 const morgan = require("morgan");
+const Imap = require("imap");
+const quotedPrintable = require("quoted-printable");
+const { sendEmail, receiveEmails, upload2 } = require("./Email");
 
 dotenv.config();
 
@@ -30,11 +31,20 @@ app.use(
 );
 
 // Socket.IO setup
-const io = socketIo(server, {
+const io = require("socket.io")(server, {
   cors: {
-    origin: "http://192.168.1.15:3000", // Ensure this matches your frontend URL
+    origin: "*", // Replace with your frontend's actual URL for security
     methods: ["GET", "POST"],
   },
+  transports: ["websocket"], // Enforce WebSocket transport
+});
+
+io.on("connection", (socket) => {
+  console.log("New client connected");
+
+  socket.on("disconnect", () => {
+    console.log("Client disconnected");
+  });
 });
 
 // MongoDB setup
@@ -46,10 +56,185 @@ mongoose
   .then(() => console.log("MongoDB connected"))
   .catch((err) => console.log(err));
 
+// Middleware to parse JSON and form data
+app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
+
+// Route to send email
+app.post("/send-email", upload2.single("file"), sendEmail);
+
+// Route to receive emails via IMAP
+app.get("/receive-emails-imap", receiveEmails);
+
 // Check for essential environment variables
 if (!process.env.TWILIO_ACCOUNT_SID || !process.env.TWILIO_AUTH_TOKEN) {
   throw new Error("Missing Twilio credentials");
 }
+
+// Middleware
+app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
+app.use("/chat", chatRoutes);
+
+// Routes
+const authRoutes = require("./routes/auth");
+app.use("/api/auth", authRoutes);
+
+// Twilio Setup
+const accountSid = process.env.TWILIO_ACCOUNT_SID;
+const authToken = process.env.TWILIO_AUTH_TOKEN;
+const twilioPhoneNumber = process.env.TWILIO_PHONE_NUMBER;
+const client = new twilio(accountSid, authToken);
+
+// Message Storage (could be replaced with MongoDB for persistence)
+let smsMessages = [];
+
+// Log all incoming requests
+app.use((req, res, next) => {
+  console.log(`Incoming request: ${req.method} ${req.url}`);
+  next();
+});
+
+// Twilio SMS Routes - Sending SMS
+app.post("/send-sms", async (req, res) => {
+  try {
+    const { to, message } = req.body;
+    if (!to || !message) {
+      return res.status(400).send({
+        success: false,
+        error: "Phone number and message are required.",
+      });
+    }
+
+    // Send the SMS using Twilio API
+    const result = await client.messages.create({
+      body: message,
+      from: twilioPhoneNumber,
+      to: to,
+    });
+
+    res.send({ success: true, messageSid: result.sid });
+  } catch (error) {
+    console.error("Error sending SMS:", error);
+    res.status(500).send({
+      success: false,
+      error: error.message,
+    });
+  }
+});
+
+// Twilio SMS Routes - Receiving SMS
+app.post("/incoming-sms", (req, res) => {
+  const { From, Body } = req.body;
+
+  if (!From || !Body) {
+    return res.status(400).send("Invalid SMS request");
+  }
+
+  smsMessages.push({ from: From, message: Body });
+  io.emit("receiveSMS", { from: From, message: Body });
+
+  res.sendStatus(200);
+});
+
+// Get SMS messages (for fetching inbox)
+app.get("/sms-messages", (req, res) => {
+  res.send(smsMessages);
+});
+
+// Twilio SMS Routes - Sending SMS
+app.post("/send-sms", async (req, res) => {
+  try {
+    const { to, message } = req.body;
+
+    if (!to || !message) {
+      return res.status(400).send({
+        success: false,
+        error: "Phone number and message are required.",
+      });
+    }
+
+    // Ensure the message is not too long
+    if (message.length > 1600) {
+      return res
+        .status(400)
+        .send({ success: false, error: "Message too long." });
+    }
+
+    // Send the SMS using Twilio API
+    const result = await client.messages.create({
+      body: message,
+      from: twilioPhoneNumber,
+      to: to,
+    });
+
+    console.log("Twilio send result:", result.sid); // Log the message SID for reference
+    res.send({ success: true, messageSid: result.sid });
+  } catch (error) {
+    console.error("Error sending SMS:", error);
+    res.status(500).send({
+      success: false,
+      error: error.message,
+      code: error.code, // Include error code from Twilio if available
+      status: error.status, // Include status from Twilio if available
+    });
+  }
+});
+
+// Twilio SMS Routes - Receiving SMS
+app.post("/incoming-sms", async (req, res) => {
+  try {
+    console.log("Incoming SMS request headers:", req.headers);
+    console.log("Incoming SMS request body:", req.body);
+
+    const { From, Body } = req.body;
+
+    // Validate the incoming request from Twilio
+    if (!From || !Body) {
+      console.error("Invalid incoming SMS request:", req.body);
+      return res.status(400).send("Invalid SMS request");
+    }
+
+    // Save the incoming message to MongoDB
+    const smsMessage = new SmsMessage({ from: From, message: Body });
+    await smsMessage.save();
+
+    console.log(`Received message from ${From}: ${Body}`);
+
+    // Emit the incoming message to connected clients via Socket.IO
+    io.emit("receiveSMS", { from: From, message: Body });
+
+    res.set("Content-Type", "text/plain"); // Explicitly set Content-Type
+    res.sendStatus(200); // Respond back with HTTP 200 to acknowledge successful handling
+  } catch (error) {
+    console.error("Error handling incoming SMS:", error);
+    res.status(500).send("Error processing incoming SMS");
+  }
+});
+
+// Get SMS messages (for fetching inbox)
+app.get("/sms-messages", async (req, res) => {
+  try {
+    const messages = await SmsMessage.find().exec();
+    res.send(messages);
+  } catch (error) {
+    console.error("Error fetching SMS messages:", error);
+    res.status(500).send("Error fetching messages");
+  }
+});
+
+// Get received SMS messages
+app.get("/received-sms", async (req, res) => {
+  try {
+    const messages = await SmsMessage.find({ status: "received" })
+      .limit(5)
+      .exec();
+    res.send(messages);
+  } catch (error) {
+    console.error("Error fetching received SMS messages:", error);
+    res.status(500).send("Error fetching messages");
+  }
+});
 
 // Middleware
 app.use(cors());
@@ -81,7 +266,7 @@ const storage = multer.diskStorage({
     cb(null, Date.now() + path.extname(file.originalname));
   },
 });
-const upload = multer({ storage: storage }); // Define the upload variable
+const upload = multer({ storage: storage });
 
 // Authorization middleware
 const checkAuth = (req, res, next) => {
@@ -92,18 +277,104 @@ const checkAuth = (req, res, next) => {
   }
 };
 
-// File upload route
+// Socket.io connection
+io.on("connection", (socket) => {
+  console.log(`User connected: ${socket.id}`);
+
+  socket.on(
+    "sendMessage",
+    async ({ sender, message, attachmentUrl, fileName, listIds }) => {
+      try {
+        if (!sender) {
+          console.error("Invalid message data: sender missing");
+          socket.emit("errorMessage", { message: "Invalid message data" });
+          return;
+        }
+
+        console.log("Received message from client:", {
+          sender,
+          message: message || "No message provided",
+          attachmentUrl: attachmentUrl || "No attachment",
+          fileName: fileName || "No file name",
+          listIds: listIds || "No listIds",
+        });
+
+        // Retrieve user role from MongoDB
+        const user = await User.findOne({ email: sender });
+        const userRole = user?.role || "user";
+
+        // Create a new chat message with the file's attachmentUrl and fileName
+        const chatMessage = new Chat({
+          user: sender,
+          sender,
+          message: message, // Remove the default message
+          attachmentUrl: attachmentUrl || "", // Store attachmentUrl
+          fileName: fileName || "",
+          role: userRole,
+          timestamp: new Date(),
+          listIds: listIds || [], // Store listIds
+        });
+
+        // Save the message to the database
+        await chatMessage.save();
+        console.log("Message saved to database:", chatMessage);
+
+        // Emit the message to all connected clients
+        io.emit("receiveMessage", {
+          sender: chatMessage.sender,
+          message: chatMessage.message,
+          attachmentUrl: chatMessage.attachmentUrl, // Use stored attachmentUrl
+          fileName: chatMessage.fileName,
+          role: chatMessage.role,
+          timestamp: chatMessage.timestamp,
+          listIds: chatMessage.listIds,
+        });
+        console.log("Message broadcasted to clients:", chatMessage);
+      } catch (error) {
+        console.error("Error processing message:", error.message);
+        socket.emit("errorMessage", { message: "Error saving message" });
+      }
+    }
+  );
+
+  socket.on("disconnect", () => {
+    console.log(`User disconnected: ${socket.id}`);
+  });
+});
+
 app.post("/upload", upload.single("file"), (req, res) => {
   if (!req.file) {
     return res.status(400).send("No file uploaded.");
   }
-  console.log("File uploaded:", req.file); // Log the uploaded file details
-  const attachmentUrl = `/uploads/${req.file.filename}`;
-  res.send({ filePath: attachmentUrl }); // Send the filePath back to the frontend
+
+  console.log("File uploaded:", req.file);
+
+  const baseUrl = `${req.protocol}://${req.get("host")}`;
+  const attachmentUrl = `${baseUrl}/uploads/${req.file.filename}`;
+
+  console.log("Raw listIds:", req.body.listIds);
+
+  // Extract and parse listIds
+  let listIds = [];
+  if (req.body.listIds) {
+    try {
+      listIds = JSON.parse(req.body.listIds);
+      console.log("Parsed listIds:", listIds);
+    } catch (error) {
+      console.error("Error parsing listIds:", error);
+      return res.status(400).send("Invalid listIds format.");
+    }
+  }
+
+  res.send({
+    filePath: attachmentUrl,
+    listIds: listIds,
+  });
 });
 
-// Serve files with authorization
-app.use("/uploads", express.static("uploads"));
+// Serve static files from the uploads directory
+app.use("/uploads", express.static(path.join(__dirname, "uploads")));
+
 const smsMessageSchema = new mongoose.Schema({
   from: String,
   message: String,
@@ -116,11 +387,6 @@ const SmsMessage = mongoose.model("SmsMessage", smsMessageSchema);
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use("/chat", chatRoutes);
-
-// Routes
-app.use("/chat", chatRoutes);
-const authRoutes = require("./routes/auth");
-app.use("/api/auth", authRoutes);
 
 // Twilio Setup
 // Generate Access Token with Incoming Call Permissions
@@ -226,410 +492,6 @@ app.use((req, res) => {
 app.use((err, req, res, next) => {
   console.error(err.stack);
   res.status(500).json({ success: false, message: "Internal server error" });
-});
-
-// Socket.IO
-// Socket.io connection
-io.on("connection", (socket) => {
-  console.log(`User connected: ${socket.id}`);
-
-  socket.on(
-    "sendMessage",
-    async ({ sender, message, attachmentUrl, fileName }) => {
-      try {
-        if (!sender || !message) {
-          console.error("Invalid message data: sender or message missing");
-          socket.emit("errorMessage", { message: "Invalid message data" });
-          return;
-        }
-
-        console.log("Received message from client:", {
-          sender,
-          message: message || "No message provided", // Handle empty messages
-          attachmentUrl: attachmentUrl || "No attachment",
-          fileName: fileName || "No file name", // Log fileName as well
-        });
-
-        // Retrieve user role from MongoDB
-        const user = await User.findOne({ email: sender });
-        const userRole = user?.role || "user"; // Default to "user" if no role found
-        console.log(`User role for ${sender}: ${userRole}`);
-
-        // Create a new chat message with the file's attachmentUrl and fileName
-        const chatMessage = new Chat({
-          user: sender,
-          sender,
-          message: message || "No message provided", // Handle empty messages
-          attachment: attachmentUrl || "", // Ensure attachmentUrl is stored properly
-          fileName: fileName || "", // Ensure fileName is stored
-          role: userRole,
-          timestamp: new Date(), // Add timestamp for when the message is saved
-        });
-
-        // Save the message to the database
-        await chatMessage.save();
-        console.log("Message saved to database:", chatMessage);
-
-        // Emit the message to all connected clients
-        io.emit("receiveMessage", {
-          sender: chatMessage.sender,
-          message: chatMessage.message,
-          attachmentUrl: chatMessage.attachment, // Use the stored attachment field as attachmentUrl
-          fileName: chatMessage.fileName, // Use fileName from the saved message
-          role: chatMessage.role,
-          timestamp: chatMessage.timestamp,
-        });
-        console.log("Message broadcasted to clients:", chatMessage);
-      } catch (error) {
-        console.error("Error processing message:", error.message);
-        socket.emit("errorMessage", { message: "Error saving message" });
-      }
-    }
-  );
-
-  socket.on("disconnect", () => {
-    console.log(`User disconnected: ${socket.id}`);
-  });
-});
-// Twilio Setup
-const accountSid = process.env.TWILIO_ACCOUNT_SID;
-const authToken = process.env.TWILIO_AUTH_TOKEN;
-const twilioPhoneNumber = process.env.TWILIO_PHONE_NUMBER;
-const client = new twilio(accountSid, authToken);
-
-// Message Storage (could be replaced with MongoDB for persistence)
-let smsMessages = [];
-
-// Twilio SMS Routes - Sending SMS
-app.post("/send-sms", async (req, res) => {
-  try {
-    const { to, message } = req.body;
-    if (!to || !message) {
-      return res.status(400).send({
-        success: false,
-        error: "Phone number and message are required.",
-      });
-    }
-
-    // Send the SMS using Twilio API
-    const result = await client.messages.create({
-      body: message,
-      from: twilioPhoneNumber,
-      to: to,
-    });
-
-    res.send({ success: true, messageSid: result.sid });
-  } catch (error) {
-    console.error("Error sending SMS:", error);
-    res.status(500).send({
-      success: false,
-      error: error.message,
-    });
-  }
-});
-
-// Twilio SMS Routes - Receiving SMS
-app.post("/incoming-sms", (req, res) => {
-  const { From, Body } = req.body;
-
-  if (!From || !Body) {
-    return res.status(400).send("Invalid SMS request");
-  }
-
-  smsMessages.push({ from: From, message: Body });
-  io.emit("receiveSMS", { from: From, message: Body });
-
-  res.sendStatus(200);
-});
-
-// Get SMS messages (for fetching inbox)
-app.get("/sms-messages", (req, res) => {
-  res.send(smsMessages);
-});
-
-// Nodemailer Setup for Sending Emails
-const emailTransporter = nodemailer.createTransport({
-  service: "gmail", // Use Gmail or another email service
-  auth: {
-    user: process.env.EMAIL_USER, // Your email
-    pass: process.env.EMAIL_PASS, // Use App Password here
-  },
-});
-
-// File upload configuration (using multer for handling multipart form-data)
-const upload2 = multer({ dest: "uploads/" }); // Temporarily save files to 'uploads' folder
-
-// Email Routes - Sending Emails (with file attachment support)
-app.post("/send-email", upload2.single("file"), async (req, res) => {
-  const { to, subject, message } = req.body;
-  const file = req.file; // The file that was uploaded
-
-  if (!to || !subject || !message) {
-    return res.status(400).send({
-      success: false,
-      error: "All fields (to, subject, message) are required.",
-    });
-  }
-
-  // Log the file upload details for debugging
-  console.log("File uploaded:", file);
-
-  const mailOptions = {
-    from: process.env.EMAIL_USER,
-    to: to,
-    subject: subject,
-    text: message,
-    attachments: file
-      ? [
-          {
-            filename: file.originalname,
-            path: file.path, // The path to the file in the uploads folder
-          },
-        ]
-      : [], // Only attach if there's a file
-  };
-
-  try {
-    const info = await emailTransporter.sendMail(mailOptions);
-    console.log("Email sent successfully:", info);
-    res.send({ success: true, messageId: info.messageId });
-  } catch (error) {
-    console.error("Error sending email:", error);
-    res.status(500).send({
-      success: false,
-      error: error.message,
-    });
-  }
-});
-
-// OAuth2 Authorization URL Route
-app.get("/auth-url", (req, res) => {
-  // Load the client credentials from the credentials.json file
-  const credentials = JSON.parse(
-    fs.readFileSync(path.join(__dirname, "credentials.json"))
-  );
-
-  const { client_id, client_secret, redirect_uris } = credentials.installed;
-
-  const oauth2Client = new google.auth.OAuth2(
-    client_id,
-    client_secret,
-    redirect_uris[0]
-  );
-
-  const authUrl = oauth2Client.generateAuthUrl({
-    access_type: "offline",
-    scope: ["https://www.googleapis.com/auth/gmail.readonly"],
-  });
-
-  res.send({ url: authUrl });
-});
-
-// OAuth2 Callback Route
-app.get("/oauth2callback", async (req, res) => {
-  // Load the client credentials from the credentials.json file
-  const credentials = JSON.parse(
-    fs.readFileSync(path.join(__dirname, "credentials.json"))
-  );
-  const { client_id, client_secret, redirect_uris } = credentials.installed;
-
-  const oauth2Client = new google.auth.OAuth2(
-    client_id,
-    client_secret,
-    redirect_uris[0]
-  );
-
-  const { code } = req.query;
-
-  try {
-    const { tokens } = await oauth2Client.getToken(code);
-    oauth2Client.setCredentials(tokens);
-
-    // Save the refresh token in a file for future use
-    fs.writeFileSync(
-      path.join(__dirname, "tokens.json"),
-      JSON.stringify(tokens)
-    );
-
-    console.log("Tokens:", tokens);
-    res.send("Authentication successful! You can close this window.");
-  } catch (error) {
-    console.error("Error getting tokens:", error);
-    res.status(500).send("Error during authentication");
-  }
-});
-
-// Fetching emails using Gmail API
-app.get("/receive-emails", async (req, res) => {
-  try {
-    // Check for the Authorization header
-    const authHeader = req.headers.authorization;
-
-    if (!authHeader) {
-      console.log("Authorization header not found.");
-      return res.status(401).json({ error: "Authorization header missing" });
-    }
-
-    // Extract the token
-    const token = authHeader.split(" ")[1]; // Assuming "Bearer <token>" format
-
-    if (!token) {
-      console.log("Access token not found in Authorization header.");
-      return res.status(401).json({ error: "Access token not found" });
-    }
-
-    console.log("Received access token:", token);
-
-    // Load the client credentials and tokens from their respective files
-    const credentials = JSON.parse(
-      fs.readFileSync(path.join(__dirname, "credentials.json"))
-    );
-    const { client_id, client_secret, redirect_uris } = credentials.installed;
-
-    const oauth2Client = new google.auth.OAuth2(
-      client_id,
-      client_secret,
-      redirect_uris[0]
-    );
-
-    // Set the access token received from the frontend
-    oauth2Client.setCredentials({ access_token: token });
-
-    const gmail = google.gmail({ version: "v1", auth: oauth2Client });
-
-    // Fetch the latest 10 messages from the inbox
-    const result = await gmail.users.messages.list({
-      userId: "me",
-      labelIds: ["INBOX"],
-      maxResults: 10,
-    });
-
-    const messages = result.data.messages || [];
-    if (messages.length === 0) {
-      console.log("No new messages.");
-      return res.status(200).send({ success: true, messages: [] }); // or messages if you want to send the empty array.
-    }
-
-    console.log("Fetched messages:", messages);
-    res.send({ success: true, messages });
-  } catch (error) {
-    console.error("Error fetching emails:", error);
-
-    if (
-      error.response &&
-      error.response.data &&
-      error.response.data.error === "invalid_grant"
-    ) {
-      console.error(
-        "Invalid or expired refresh token. Please re-authenticate."
-      );
-    }
-
-    res.status(500).send({
-      success: false,
-      error: error.message,
-    });
-  }
-});
-
-// Log all incoming requests
-app.use((req, res, next) => {
-  console.log(`Incoming request: ${req.method} ${req.url}`);
-  next();
-});
-
-// Twilio SMS Routes - Sending SMS
-app.post("/send-sms", async (req, res) => {
-  try {
-    const { to, message } = req.body;
-
-    if (!to || !message) {
-      return res.status(400).send({
-        success: false,
-        error: "Phone number and message are required.",
-      });
-    }
-
-    // Ensure the message is not too long
-    if (message.length > 1600) {
-      return res
-        .status(400)
-        .send({ success: false, error: "Message too long." });
-    }
-
-    // Send the SMS using Twilio API
-    const result = await client.messages.create({
-      body: message,
-      from: twilioPhoneNumber,
-      to: to,
-    });
-
-    console.log("Twilio send result:", result.sid); // Log the message SID for reference
-    res.send({ success: true, messageSid: result.sid });
-  } catch (error) {
-    console.error("Error sending SMS:", error);
-    res.status(500).send({
-      success: false,
-      error: error.message,
-      code: error.code, // Include error code from Twilio if available
-      status: error.status, // Include status from Twilio if available
-    });
-  }
-});
-
-// Twilio SMS Routes - Receiving SMS
-app.post("/incoming-sms", async (req, res) => {
-  try {
-    console.log("Incoming SMS request headers:", req.headers);
-    console.log("Incoming SMS request body:", req.body);
-
-    const { From, Body } = req.body;
-
-    // Validate the incoming request from Twilio
-    if (!From || !Body) {
-      console.error("Invalid incoming SMS request:", req.body);
-      return res.status(400).send("Invalid SMS request");
-    }
-
-    // Save the incoming message to MongoDB
-    const smsMessage = new SmsMessage({ from: From, message: Body });
-    await smsMessage.save();
-
-    console.log(`Received message from ${From}: ${Body}`);
-
-    // Emit the incoming message to connected clients via Socket.IO
-    io.emit("receiveSMS", { from: From, message: Body });
-
-    res.set("Content-Type", "text/plain"); // Explicitly set Content-Type
-    res.sendStatus(200); // Respond back with HTTP 200 to acknowledge successful handling
-  } catch (error) {
-    console.error("Error handling incoming SMS:", error);
-    res.status(500).send("Error processing incoming SMS");
-  }
-});
-
-// Get SMS messages (for fetching inbox)
-app.get("/sms-messages", async (req, res) => {
-  try {
-    const messages = await SmsMessage.find().exec();
-    res.send(messages);
-  } catch (error) {
-    console.error("Error fetching SMS messages:", error);
-    res.status(500).send("Error fetching messages");
-  }
-});
-
-// Get received SMS messages
-app.get("/received-sms", async (req, res) => {
-  try {
-    const messages = await SmsMessage.find({ status: "received" })
-      .limit(5)
-      .exec();
-    res.send(messages);
-  } catch (error) {
-    console.error("Error fetching received SMS messages:", error);
-    res.status(500).send("Error fetching messages");
-  }
 });
 
 let userCount = 0; // Track the number of users connected

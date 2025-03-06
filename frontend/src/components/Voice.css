@@ -1,0 +1,141 @@
+.call-container {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    min-height: 100vh;
+    background-color: #f4f4f4;
+  }
+  
+  .dialpad-container {
+    background-color: white;
+    border-radius: 8px;
+    padding: 20px;
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+    width: 300px;
+  }
+  
+  .phone-number-display {
+    background-color: #e0e0e0;
+    padding: 10px;
+    margin-bottom: 20px;
+    text-align: right;
+    font-size: 1.5em;
+    border-radius: 4px;
+  }
+  
+  .dialpad {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 10px;
+    margin-bottom: 20px;
+  }
+  
+  .digit-button {
+    padding: 15px;
+    font-size: 1.2em;
+    border: 1px solid #ccc;
+    border-radius: 50%;
+    background-color: #f0f0f0;
+    cursor: pointer;
+    transition: background-color 0.3s ease;
+  }
+  
+  .digit-button:hover {
+    background-color: #e0e0e0;
+  }
+  
+  .call-actions {
+    display: flex;
+    justify-content: center;
+  }
+  
+  .action-buttons {
+    display: flex;
+    gap: 10px; /* Space between buttons */
+  }
+  
+  .call-button {
+    padding: 20px;
+    font-size: 1.5em;
+    border: none;
+    border-radius: 50%;
+    background-color: #4caf50;
+    color: white;
+    cursor: pointer;
+    transition: background-color 0.3s ease;
+  }
+  
+  .call-button:hover {
+    background-color: #43a047;
+  }
+  
+  .delete-button {
+    padding: 20px;
+    font-size: 1.5em;
+    border: none;
+    border-radius: 50%;
+    background-color: rgba(0, 0, 0, 0.2); /* Less opaque background */
+    color: white;
+    cursor: pointer;
+    transition: background-color 0.3s ease;
+  }
+  
+  .delete-button:hover {
+    background-color: rgba(0, 0, 0, 0.3); /* Slightly darker on hover */
+  }
+  
+  .hangup-button {
+    padding: 20px;
+    font-size: 1.5em;
+    border: none;
+    border-radius: 50%;
+    background-color: #f44336;
+    color: white;
+    cursor: pointer;
+    transition: background-color 0.3s ease;
+  }
+  
+  .hangup-button:hover {
+    background-color: #d32f2f;
+  }
+  
+  .incoming-call-popup {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    background-color: white;
+    padding: 20px;
+    border-radius: 8px;
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+    z-index: 1;
+  }
+  
+  .accept-button {
+    padding: 10px 20px;
+    border: none;
+    border-radius: 4px;
+    background-color: #4caf50;
+    color: white;
+    cursor: pointer;
+    transition: background-color 0.3s ease;
+  }
+  
+  .accept-button:hover {
+    background-color: #43a047;
+  }
+  
+  .reject-button {
+    padding: 10px 20px;
+    border: none;
+    border-radius: 4px;
+    background-color: #f44336;
+    color: white;
+    cursor: pointer;
+    transition: background-color 0.3s ease;
+  }
+  
+  .reject-button:hover {
+    background-color: #d32f2f;
+  }
+  

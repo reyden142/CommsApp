@@ -1,5 +1,4 @@
-// src/App.js
-import React, { useState, useEffect } from "react";
+import React, { useState } from "react";
 import {
   BrowserRouter as Router,
   Route,
@@ -10,46 +9,37 @@ import {
 import { UserProvider, useUser } from "./context/UserContext";
 import Login from "./components/Login";
 import Logout from "./components/Logout";
+import Register from "./components/Register"; // ✅ New Register Component
 import Dashboard from "./components/Dashboard";
 import Home from "./components/Home";
-import Chat from "./components/Chat"; // No changes needed here, still the main chat component
+import Chat from "./components/Chat";
 import Voice from "./components/Voice";
 import Video from "./components/Video";
 import Email from "./components/Email";
 import SMS from "./components/SMS";
 import "./App.css";
-import ErrorBoundary from "./components/ErrorBoundary"; // Import ErrorBoundary
+import ErrorBoundary from "./components/ErrorBoundary";
 
 const PrivateRoute = ({ children }) => {
   const contextValue = useUser();
-  const user = contextValue?.user; // Safely access user
-
+  const user = contextValue?.user;
   return user ? children : <Navigate to="/login" replace />;
 };
 
 const App = () => {
-  // State to store any email-related information
   const [emails, setEmails] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
 
-  // Function to handle sending email
   const handleSendEmail = async (emailData) => {
     try {
-      setIsLoading(true); // Indicate loading while sending email
-      const response = await fetch("http://192.168.1.15:5000/send-email", {
+      setIsLoading(true);
+      const response = await fetch("http://localhost:5000/send-email", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify(emailData),
       });
-
       const result = await response.json();
-      if (result.success) {
-        alert("Email sent successfully!");
-      } else {
-        alert("Failed to send email");
-      }
+      alert(result.success ? "Email sent successfully!" : "Failed to send email");
     } catch (error) {
       console.error("Error sending email:", error);
       alert("An error occurred while sending the email.");
@@ -58,15 +48,12 @@ const App = () => {
     }
   };
 
-  // Function to fetch emails (inbox)
   const fetchEmails = async () => {
     try {
-      setIsLoading(true); // Indicate loading while fetching emails
-      const response = await fetch(
-        "http://192.168.1.15:5000/receive-emails-imap"
-      ); // Use your IMAP route
+      setIsLoading(true);
+      const response = await fetch("http://localhost:5000/receive-emails-imap");
       const emailData = await response.json();
-      setEmails(emailData); // Store emails in state
+      setEmails(emailData);
     } catch (error) {
       console.error("Error fetching emails:", error);
       alert("An error occurred while fetching the emails.");
@@ -81,31 +68,19 @@ const App = () => {
         <div className="app-container">
           <nav className="navbar">
             <ul className="nav-links">
-              <li>
-                <Link to="/home">Home</Link>
-              </li>
-              <li>
-                <Link to="/chat">Chat</Link>
-              </li>
-              <li>
-                <Link to="/voice">Voice</Link>
-              </li>
-              <li>
-                <Link to="/video">Video</Link>
-              </li>
-              <li>
-                <Link to="/email">Email</Link>
-              </li>
-              <li>
-                <Link to="/sms">SMS</Link>
-              </li>
-              <li>
-                <Link to="/logout">Logout</Link>
-              </li>
+              <li><Link to="/home">Home</Link></li>
+              <li><Link to="/chat">Chat</Link></li>
+              <li><Link to="/voice">Voice</Link></li>
+              <li><Link to="/video">Video</Link></li>
+              <li><Link to="/email">Email</Link></li>
+              <li><Link to="/sms">SMS</Link></li>
+              <li><Link to="/logout">Logout</Link></li>
             </ul>
           </nav>
+
           <Routes>
             <Route path="/login" element={<Login />} />
+            <Route path="/register" element={<Register />} />
             <Route path="/logout" element={<Logout />} />
             <Route path="/" element={<Navigate to="/login" replace />} />
             <Route path="/home" element={<Home />} />
@@ -116,8 +91,6 @@ const App = () => {
               path="/email"
               element={
                 <ErrorBoundary>
-                  {" "}
-                  {/* Wrap Email with ErrorBoundary */}
                   <Email
                     emails={emails}
                     fetchEmails={fetchEmails}
@@ -131,7 +104,7 @@ const App = () => {
               path="/sms"
               element={
                 <ErrorBoundary>
-                  <SMS />{" "}
+                  <SMS />
                 </ErrorBoundary>
               }
             />

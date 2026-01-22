@@ -4,7 +4,7 @@ import "./SMS.css";
 import { ToastContainer, toast } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 
-const API_URL = process.env.REACT_APP_API_URL || "http://192.168.1.15:5000";
+const API_URL = process.env.REACT_APP_API_URL || "http://localhost:5000";
 
 function SMS() {
   const [activeSection, setActiveSection] = useState("inbox");
@@ -102,9 +102,8 @@ function SMS() {
           Inbox
         </button>
         <button
-          className={`sms-button ${
-            activeSection === "newMessage" ? "active" : ""
-          }`}
+          className={`sms-button ${activeSection === "newMessage" ? "active" : ""
+            }`}
           onClick={handleNewMessageClick}
         >
           New Message

@@ -5,7 +5,7 @@ import { useUser } from "../context/UserContext";
 import "./Chat.css";
 
 // Socket connection
-const socket = io("http://192.168.1.15:5000", {
+const socket = io("http://localhost:5000", {
   transports: ["websocket", "polling"],
   reconnectionAttempts: 5,
   reconnectionDelay: 1000,
@@ -90,7 +90,7 @@ const Chat = () => {
 
       try {
         const response = await axios.post(
-          "http://192.168.1.15:5000/upload",
+          "http://localhost:5000/upload",
           formData,
           {
             headers: {
@@ -144,9 +144,8 @@ const Chat = () => {
           return (
             <div
               key={index}
-              className={`message ${
-                msg.sender === user?.email ? "client" : "admin"
-              }`}
+              className={`message ${msg.sender === user?.email ? "client" : "admin"
+                }`}
             >
               <div className="message-sender">{getUsername(msg.sender)}</div>
               {msg.message && <div className="message-text">{msg.message}</div>}

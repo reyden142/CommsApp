@@ -23,7 +23,7 @@ const AttachmentUploader = ({ user, socket, onFileUploaded }) => {
 
     try {
       const response = await axios.post(
-        "http://192.168.1.15:5000/upload",
+        "http://localhost:5000/upload",
         formData,
         { headers: { "Content-Type": "multipart/form-data" } }
       );

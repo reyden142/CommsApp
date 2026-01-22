@@ -37,7 +37,7 @@ const Email = () => {
     if (file) emailData.append("file", file);
 
     try {
-      const response = await fetch("http://192.168.1.15:5000/send-email", {
+      const response = await fetch("http://localhost:5000/send-email", {
         method: "POST",
         body: emailData,
       });
@@ -69,7 +69,7 @@ const Email = () => {
       setErrorMessage("");
       console.log("Starting email fetch.");
       try {
-        const apiUrl = "http://192.168.1.15:5000";
+        const apiUrl = "http://localhost5000";
 
         const response = await fetch(
           `${apiUrl}/receive-emails-imap?limit=${limit}&offset=${offset}`
@@ -78,8 +78,7 @@ const Email = () => {
         if (!response.ok) {
           const errorData = await response.json();
           throw new Error(
-            `HTTP error! status: ${response.status}, message: ${
-              errorData?.message || "Unknown Error"
+            `HTTP error! status: ${response.status}, message: ${errorData?.message || "Unknown Error"
             }`
           );
         }

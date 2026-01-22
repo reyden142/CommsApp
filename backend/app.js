@@ -7,7 +7,7 @@ const multer = require("multer");
 const path = require("path");
 const fs = require("fs");
 const Chat = require("./models/Chat");
-const User = require("./models/User");
+const User = require("@tmq-reyden/auth/models/User");
 const chatRoutes = require("./routes/chatRoutes");
 const dotenv = require("dotenv");
 const cors = require("cors");
@@ -26,7 +26,8 @@ const server = http.createServer(app);
 // CORS Configuration (Allow requests from localhost:3000)
 app.use(
   cors({
-    origin: "http://192.168.1.15:3000", // Make sure to update if you're deploying to production
+    origin: ["http://localhost:3000", "http://192.168.1.15:3000"],
+    credentials: true,
   })
 );
 
@@ -48,13 +49,45 @@ io.on("connection", (socket) => {
 });
 
 // MongoDB setup
+// MongoDB setup
 mongoose
-  .connect(process.env.MONGO_URI, {
-    useNewUrlParser: true,
-    useUnifiedTopology: true,
+  .connect(process.env.MONGO_URI)
+  .then(async () => {
+    console.log("✅ MongoDB connected");
+
+    // 🔍 Log all collections
+    const collections = await mongoose.connection.db.listCollections().toArray();
+    console.log("📁 Collections in the database:");
+    collections.forEach((col) => console.log(` - ${col.name}`));
+
+    // 👥 Log existing users
+    const users = await mongoose.connection.db.collection("users").find().toArray();
+    console.log("👥 Users in database:");
+    users.forEach((user, i) => {
+      console.log(`User ${i + 1}:`, user);
+    });
+
+    // 👤 Insert admin user if not exists
+    const existingUser = await User.findOne({ email: "admin@gmail.com" });
+    if (!existingUser) {
+      const newUser = new User({
+        username: "admin",
+        email: "admin@gmail.com",
+        password: "12345678",
+        role: "admin"
+      });
+
+      await newUser.save();
+      console.log("✅ Inserted new admin user.");
+    } else {
+      console.log("ℹ️ Admin user already exists.");
+    }
+
   })
-  .then(() => console.log("MongoDB connected"))
-  .catch((err) => console.log(err));
+  .catch((err) => {
+    console.error("❌ MongoDB connection error:", err.message);
+  });
+
 
 // Middleware to parse JSON and form data
 app.use(express.json());
@@ -77,7 +110,7 @@ app.use(express.urlencoded({ extended: true }));
 app.use("/chat", chatRoutes);
 
 // Routes
-const authRoutes = require("./routes/auth");
+const authRoutes = require("@tmq-reyden/auth/routes/authRoutes"); // adjust this to the actual path
 app.use("/api/auth", authRoutes);
 
 // Twilio Setup
@@ -237,7 +270,7 @@ app.get("/received-sms", async (req, res) => {
 });
 
 // Middleware
-app.use(cors());
+//app.use(cors());
 app.use(express.json());
 app.use(
   session({
